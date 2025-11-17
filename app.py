@@ -2,9 +2,15 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import sqlite3
 import os
 import hashlib
+import logging
+import traceback
 
+# --------- App setup ----------
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
+
+# Configure logging (Render shows these logs)
+logging.basicConfig(level=logging.INFO)
 
 def get_db():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +30,6 @@ def inject_cart_count():
     return {"cart_count": cart_count}
 
 # ---------- Routes ----------
-
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -34,10 +39,11 @@ def products():
     q = request.args.get("q", "").strip()
     conn = get_db()
     if q:
-        # search by name or category (case-insensitive)
         like = f"%{q}%"
-        items = conn.execute("SELECT * FROM products WHERE name LIKE ? OR category LIKE ? ORDER BY name",
-                             (like, like)).fetchall()
+        items = conn.execute(
+            "SELECT * FROM products WHERE name LIKE ? OR category LIKE ? ORDER BY name",
+            (like, like)
+        ).fetchall()
     else:
         items = conn.execute("SELECT * FROM products ORDER BY name").fetchall()
     conn.close()
@@ -53,7 +59,6 @@ def product_detail(pid):
     return render_template("product_detail.html", p=p)
 
 # ----- CART / ORDER HELPERS & ROUTES -----
-
 def get_product(product_id):
     conn = get_db()
     p = conn.execute("SELECT product_id, name, price FROM products WHERE product_id = ?", (product_id,)).fetchone()
@@ -62,7 +67,6 @@ def get_product(product_id):
 
 @app.route("/add_to_cart/<int:pid>", methods=["POST","GET"])
 def add_to_cart(pid):
-    # qty may come from form (product_detail) or default to 1
     qty = 1
     if request.method == "POST":
         try:
@@ -153,7 +157,7 @@ def checkout():
         total += price * int(qty)
         order_items.append((pid, int(qty), price))
 
-    # insert order
+    # insert order (created_at can be added later if desired)
     cur.execute("INSERT INTO orders (user_id, total) VALUES (?, ?)", (session["user_id"], total))
     order_id = cur.lastrowid
 
@@ -168,7 +172,6 @@ def checkout():
     # clear cart
     session.pop("cart", None)
 
-    # redirect to friendly order confirmation page
     return redirect(url_for("order_confirmation", oid=order_id))
 
 @app.route("/order-confirmation/<int:oid>")
@@ -209,21 +212,38 @@ def order_detail(oid):
     conn.close()
     return render_template("order_detail.html", order=order, items=items)
 
+# ---------- FIXED /orders route ----------
 @app.route("/orders")
 def my_orders():
     if "user_id" not in session:
         return redirect("/login")
+
     conn = get_db()
-    orders = conn.execute("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC", (session["user_id"],)).fetchall()
-    orders_list = []
-    for o in orders:
-        items = conn.execute("SELECT oi.qty, oi.price, p.name FROM order_items oi JOIN products p ON oi.product_id=p.product_id WHERE oi.order_id = ?", (o["order_id"],)).fetchall()
-        orders_list.append({"order": o, "items": items})
-    conn.close()
-    return render_template("orders.html", orders=orders_list)
+    try:
+        # Use created_at if it exists; otherwise fallback to order_id to avoid errors
+        orders = conn.execute(
+            "SELECT * FROM orders WHERE user_id = ? ORDER BY COALESCE(created_at, order_id) DESC",
+            (session["user_id"],)
+        ).fetchall()
+
+        orders_list = []
+        for o in orders:
+            items = conn.execute(
+                "SELECT oi.qty, oi.price, p.name FROM order_items oi "
+                "JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?",
+                (o["order_id"],)
+            ).fetchall()
+            orders_list.append({"order": o, "items": items})
+
+        conn.close()
+        return render_template("orders.html", orders=orders_list)
+    except Exception as e:
+        logging.error("Error in /orders: %s", e)
+        logging.error(traceback.format_exc())
+        conn.close()
+        return "An error occurred while loading your orders. Check logs.", 500
 
 # ---------- Authentication / User routes ----------
-
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -263,10 +283,9 @@ def login():
         conn.close()
 
         if user:
-            # set consistent session keys used in templates
             session["user_id"] = user["user_id"]
-            session["user"] = user["name"]        # friendly display name used in templates
-            session["user_name"] = user["name"]   # keep older key if you used it
+            session["user"] = user["name"]
+            session["user_name"] = user["name"]
             session["email"] = user["email"]
             return redirect("/dashboard")
         else:
@@ -289,7 +308,7 @@ def dashboard():
 
 @app.route("/profile", methods=["GET", "POST"])
 def profile():
-    if "user_id" not in session:
+    if "user_id" not in session":
         return redirect("/login")
 
     conn = get_db()
@@ -318,6 +337,7 @@ def profile():
 def logout():
     session.clear()
     return redirect("/login")
+
 @app.route("/report")
 def report():
     conn = get_db()
@@ -340,3 +360,4 @@ def report():
 if __name__ == "__main__":
     print("Starting Flask Server...")
     app.run(debug=True)
+
