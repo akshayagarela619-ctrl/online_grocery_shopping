@@ -19,21 +19,22 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-# ---------- Context processor: make cart_count available to all templates ----------
+# ---------- Context processor ----------
 @app.context_processor
 def inject_cart_count():
     cart = session.get("cart") or {}
     try:
         cart_count = sum(int(q) for q in cart.values())
-    except Exception:
+    except:
         cart_count = 0
     return {"cart_count": cart_count}
 
-# ---------- Routes ----------
+# ---------- Home ----------
 @app.route("/")
 def home():
     return render_template("index.html")
 
+# ---------- Products ----------
 @app.route("/products")
 def products():
     q = request.args.get("q", "").strip()
@@ -58,7 +59,7 @@ def product_detail(pid):
         return "Product not found", 404
     return render_template("product_detail.html", p=p)
 
-# ----- CART / ORDER HELPERS & ROUTES -----
+# ---------- CART ----------
 def get_product(product_id):
     conn = get_db()
     p = conn.execute("SELECT product_id, name, price FROM products WHERE product_id = ?", (product_id,)).fetchone()
@@ -88,6 +89,7 @@ def cart():
     cart = session.get("cart", {}) or {}
     items = []
     total = 0.0
+
     if cart:
         conn = get_db()
         for pid_str, qty in cart.items():
@@ -95,7 +97,8 @@ def cart():
                 pid = int(pid_str)
             except:
                 continue
-            p = conn.execute("SELECT product_id, name, price FROM products WHERE product_id = ?", (pid,)).fetchone()
+
+            p = conn.execute("SELECT * FROM products WHERE product_id = ?", (pid,)).fetchone()
             if p:
                 subtotal = float(p["price"]) * int(qty)
                 items.append({
@@ -107,6 +110,7 @@ def cart():
                 })
                 total += subtotal
         conn.close()
+
     return render_template("cart.html", items=items, total=total)
 
 @app.route("/update_cart", methods=["POST"])
@@ -114,7 +118,7 @@ def update_cart():
     new_cart = {}
     for key, value in request.form.items():
         if key.startswith("qty_"):
-            pid = key.split("_", 1)[1]
+            pid = key.split("_")[1]
             try:
                 q = int(value)
             except:
@@ -124,17 +128,19 @@ def update_cart():
     session["cart"] = new_cart
     return redirect("/cart")
 
-@app.route("/remove_from_cart/<int:pid>", methods=["POST","GET"])
+@app.route("/remove_from_cart/<int:pid>")
 def remove_from_cart(pid):
     cart = session.get("cart", {}) or {}
     cart.pop(str(pid), None)
     session["cart"] = cart
     return redirect("/cart")
 
+# ---------- CHECKOUT ----------
 @app.route("/checkout", methods=["GET","POST"])
 def checkout():
     if "user_id" not in session:
         return redirect("/login")
+
     cart = session.get("cart", {}) or {}
     if not cart:
         flash("Your cart is empty.")
@@ -145,6 +151,7 @@ def checkout():
 
     total = 0.0
     order_items = []
+
     for pid_str, qty in cart.items():
         try:
             pid = int(pid_str)
@@ -157,30 +164,36 @@ def checkout():
         total += price * int(qty)
         order_items.append((pid, int(qty), price))
 
-    # insert order (created_at can be added later if desired)
+    # Insert order
     cur.execute("INSERT INTO orders (user_id, total) VALUES (?, ?)", (session["user_id"], total))
     order_id = cur.lastrowid
 
-    # insert order items
+    # Insert items
     for pid, qty, price in order_items:
-        cur.execute("INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)",
-                    (order_id, pid, qty, price))
+        cur.execute(
+            "INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)",
+            (order_id, pid, qty, price)
+        )
 
     conn.commit()
     conn.close()
 
-    # clear cart
     session.pop("cart", None)
 
     return redirect(url_for("order_confirmation", oid=order_id))
 
+# ---------- ORDER CONFIRMATION ----------
 @app.route("/order-confirmation/<int:oid>")
 def order_confirmation(oid):
     if "user_id" not in session:
         return redirect("/login")
 
     conn = get_db()
-    order_row = conn.execute("SELECT * FROM orders WHERE order_id = ? AND user_id = ?", (oid, session["user_id"])).fetchone()
+    order_row = conn.execute(
+        "SELECT * FROM orders WHERE order_id = ? AND user_id = ?",
+        (oid, session["user_id"])
+    ).fetchone()
+
     if not order_row:
         conn.close()
         return "Order not found", 404
@@ -193,26 +206,38 @@ def order_confirmation(oid):
     """, (oid,)).fetchall()
 
     conn.close()
-    order = dict(order_row)
-    items = [dict(r) for r in items_rows]
-    return render_template("order_confirmation.html", order=order, items=items)
+    return render_template(
+        "order_confirmation.html",
+        order=dict(order_row),
+        items=[dict(r) for r in items_rows]
+    )
 
+# ---------- VIEW SINGLE ORDER ----------
 @app.route("/orders/<int:oid>")
 def order_detail(oid):
     if "user_id" not in session:
         return redirect("/login")
+
     conn = get_db()
-    order = conn.execute("SELECT * FROM orders WHERE order_id = ? AND user_id = ?", (oid, session["user_id"])).fetchone()
+    order = conn.execute(
+        "SELECT * FROM orders WHERE order_id = ? AND user_id = ?",
+        (oid, session["user_id"])
+    ).fetchone()
+
     if not order:
         conn.close()
         return "Order not found", 404
-    items = conn.execute("""SELECT oi.qty, oi.price, p.name FROM order_items oi 
-                            JOIN products p ON oi.product_id = p.product_id
-                            WHERE oi.order_id = ?""", (oid,)).fetchall()
+
+    items = conn.execute(
+        "SELECT oi.qty, oi.price, p.name FROM order_items oi "
+        "JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?",
+        (oid,)
+    ).fetchall()
+
     conn.close()
     return render_template("order_detail.html", order=order, items=items)
 
-# ---------- FIXED /orders route ----------
+# ---------- FIXED /orders (NO created_at NEEDED) ----------
 @app.route("/orders")
 def my_orders():
     if "user_id" not in session:
@@ -220,7 +245,6 @@ def my_orders():
 
     conn = get_db()
     try:
-        # Use created_at if it exists; otherwise fallback to order_id to avoid errors
         orders = conn.execute(
             "SELECT * FROM orders WHERE user_id = ? ORDER BY COALESCE(created_at, order_id) DESC",
             (session["user_id"],)
@@ -233,33 +257,37 @@ def my_orders():
                 "JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = ?",
                 (o["order_id"],)
             ).fetchall()
+
             orders_list.append({"order": o, "items": items})
 
         conn.close()
         return render_template("orders.html", orders=orders_list)
+
     except Exception as e:
-        logging.error("Error in /orders: %s", e)
+        logging.error("ERROR in /orders: %s", e)
         logging.error(traceback.format_exc())
         conn.close()
-        return "An error occurred while loading your orders. Check logs.", 500
+        return "An error occurred. Check logs.", 500
 
-# ---------- Authentication / User routes ----------
+# ---------- AUTH ----------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
+        name = request.form.get("name","").strip()
+        email = request.form.get("email","").strip().lower()
+        password = request.form.get("password","")
 
         if not (name and email and password):
-            return "Please fill all fields", 400
+            return "All fields required.", 400
 
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        hashed = hashlib.sha256(password.encode()).hexdigest()
 
         conn = get_db()
         try:
-            conn.execute("INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-                         (name, email, hashed_password))
+            conn.execute(
+                "INSERT INTO users (name,email,password) VALUES (?,?,?)",
+                (name,email,hashed)
+            )
             conn.commit()
         except sqlite3.IntegrityError:
             conn.close()
@@ -270,26 +298,29 @@ def signup():
 
     return render_template("signup.html")
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET","POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        email = request.form.get("email","").strip().lower()
+        password = request.form.get("password","")
+
+        hashed = hashlib.sha256(password.encode()).hexdigest()
 
         conn = get_db()
-        user = conn.execute("SELECT * FROM users WHERE email = ? AND password = ?",
-                            (email, hashed_password)).fetchone()
+        user = conn.execute(
+            "SELECT * FROM users WHERE email = ? AND password = ?",
+            (email,hashed)
+        ).fetchone()
         conn.close()
 
         if user:
-            session["user_id"] = user["user_id"]
-            session["user"] = user["name"]
+            session["user_id"]   = user["user_id"]
+            session["user"]      = user["name"]
             session["user_name"] = user["name"]
-            session["email"] = user["email"]
+            session["email"]     = user["email"]
             return redirect("/dashboard")
-        else:
-            return "Invalid email or password."
+
+        return "Invalid login."
 
     return render_template("login.html")
 
@@ -299,26 +330,28 @@ def dashboard():
         return redirect("/login")
 
     user = {
-        "user_id": session.get("user_id"),
-        "name": session.get("user_name"),
-        "email": session.get("email")
+        "user_id": session["user_id"],
+        "name": session["user_name"],
+        "email": session["email"]
     }
 
     return render_template("dashboard.html", user=user)
 
 @app.route("/profile", methods=["GET", "POST"])
 def profile():
-    if "user_id" not in session":
+    if "user_id" not in session:
         return redirect("/login")
 
     conn = get_db()
 
     if request.method == "POST":
-        new_name = request.form.get("name", "").strip()
-        new_email = request.form.get("email", "").strip().lower()
+        new_name = request.form.get("name","").strip()
+        new_email = request.form.get("email","").strip().lower()
 
-        conn.execute("UPDATE users SET name = ?, email = ? WHERE user_id = ?",
-                     (new_name, new_email, session["user_id"]))
+        conn.execute(
+            "UPDATE users SET name=?, email=? WHERE user_id=?",
+            (new_name,new_email,session["user_id"])
+        )
         conn.commit()
 
         session["user_name"] = new_name
@@ -327,8 +360,10 @@ def profile():
         conn.close()
         return redirect("/dashboard")
 
-    user = conn.execute("SELECT * FROM users WHERE user_id = ?",
-                        (session["user_id"],)).fetchone()
+    user = conn.execute(
+        "SELECT * FROM users WHERE user_id=?",
+        (session["user_id"],)
+    ).fetchone()
     conn.close()
 
     return render_template("profile.html", user=user)
@@ -338,26 +373,27 @@ def logout():
     session.clear()
     return redirect("/login")
 
+# ---------- REPORT PAGE ----------
 @app.route("/report")
 def report():
     conn = get_db()
-    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
-    tables = [t["name"] for t in tables]
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
 
+    tables = [t["name"] for t in tables]
     data = []
+
     for table in tables:
         rows = conn.execute(f"SELECT * FROM {table}").fetchall()
-        column_info = conn.execute(f"PRAGMA table_info({table})").fetchall()
-        columns = [c["name"] for c in column_info]
-
+        columns = [c["name"] for c in conn.execute(f"PRAGMA table_info({table})").fetchall()]
         rows_list = [dict(r) for r in rows]
         data.append({"table": table, "columns": columns, "rows": rows_list})
 
     conn.close()
     return render_template("report.html", data=data)
 
-
+# ---------- RUN ----------
 if __name__ == "__main__":
-    print("Starting Flask Server...")
+    print("Starting Flask server...")
     app.run(debug=True)
-
