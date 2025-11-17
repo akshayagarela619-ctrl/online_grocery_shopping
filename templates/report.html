@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Database Report{% endblock %}
+{% block content %}
+
+<h2>Database Tables Report</h2>
+
+{% for tbl in data %}
+  <h3>{{ tbl.table }}</h3>
+  <table border="1" cellpadding="5">
+    <thead>
+      <tr>
+        {% for col in tbl.columns %}
+          <th>{{ col }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in tbl.rows %}
+        <tr>
+          {% for col in tbl.columns %}
+            <td>{{ row[col] }}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br><br>
+{% endfor %}
+
+{% endblock %}

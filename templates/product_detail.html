@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} — Product{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-5">
+    <img src="{{ url_for('static', filename='images/' ~ p.product_id ~ '.jpg') }}"
+         onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/placeholder.png') }}';"
+         alt="{{ p.name }}" class="img-fluid rounded shadow-sm">
+  </div>
+
+  <div class="col-md-7">
+    <h1>{{ p.name }}</h1>
+    <p class="text-muted">Category: {{ p.category }}</p>
+    <h3 class="text-primary">₹{{ '%.2f'|format(p.price) }}</h3>
+
+    <form action="/add_to_cart/{{ p.product_id }}" method="post" class="mt-3 d-flex gap-2">
+      <input type="number" name="qty" value="1" min="1" class="form-control" style="width:100px">
+      <button class="btn btn-success" type="submit">Add to cart</button>
+    </form>
+
+    <hr>
+    <p class="small text-muted">Product ID: {{ p.product_id }}</p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ order.order_id }}{% endblock %}
+
+{% block content %}
+<a href="/orders" class="mb-3 d-inline-block">&larr; Back to Orders</a>
+<h2>Order #{{ order.order_id }}</h2>
+<p class="text-muted">Placed: {{ order.created_at }}</p>
+
+<ul class="list-group mb-3">
+  {% for it in items %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <div>
+      <strong>{{ it.name }}</strong><br>
+      <small class="text-muted">Qty: {{ it.qty }}</small>
+    </div>
+    <div>₹{{ '%.2f'|format(it.price) }}</div>
+  </li>
+  {% endfor %}
+</ul>
+
+<p><strong>Total: ₹{{ '%.2f'|format(order.total) }}</strong></p>
+<a href="/products" class="btn btn-outline-secondary">Shop more</a>
+{% endblock %}
+
+
+

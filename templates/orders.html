@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}My Orders{% endblock %}
+
+{% block content %}
+<h2>My Orders</h2>
+
+{% if orders %}
+  <div class="list-group">
+    {% for o in orders %}
+      <a href="/orders/{{ o.order.order_id }}" class="list-group-item list-group-item-action">
+        <div class="d-flex w-100 justify-content-between">
+          <h5 class="mb-1">Order #{{ o.order.order_id }}</h5>
+          <small class="text-muted">{{ o.order.created_at }}</small>
+        </div>
+        <p class="mb-1">Total: ₹{{ '%.2f'|format(o.order.total) }} — {{ o.items|length }} items</p>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert alert-info">You have no orders yet. <a href="/products">Shop now</a></div>
+{% endif %}
+{% endblock %}
+
+

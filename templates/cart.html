@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Your Cart{% endblock %}
+
+{% block content %}
+<h2>Your Cart</h2>
+
+{% if items %}
+<form method="post" action="/update_cart">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th style="width:120px">Price</th>
+        <th style="width:120px">Qty</th>
+        <th style="width:120px">Subtotal</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>
+          <div class="d-flex align-items-center">
+            <img src="{{ url_for('static', filename='images/' ~ it.product_id ~ '.jpg') }}"
+                 onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/placeholder.png') }}';"
+                 alt="{{ it.name }}" style="width:64px;height:48px;object-fit:cover;" class="me-2 rounded">
+            <div>{{ it.name }}</div>
+          </div>
+        </td>
+        <td>₹{{ '%.2f'|format(it.price) }}</td>
+        <td>
+          <input type="number" min="1" name="qty_{{ it.product_id }}" value="{{ it.qty }}" class="form-control" style="width:90px">
+        </td>
+        <td>₹{{ '%.2f'|format(it.subtotal) }}</td>
+        <td>
+          <form action="/remove_from_cart/{{ it.product_id }}" method="post" style="display:inline;">
+            <button class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <button type="submit" class="btn btn-secondary">Update Quantities</button>
+      <a href="/products" class="btn btn-link">Continue Shopping</a>
+    </div>
+    <div>
+      <strong class="me-3">Total: ₹{{ '%.2f'|format(total) }}</strong>
+      <a href="/checkout" class="btn btn-primary">Proceed to Checkout</a>
+    </div>
+  </div>
+</form>
+{% else %}
+  <div class="alert alert-info">Your cart is empty. <a href="/products">Shop now</a></div>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Home - Grocery Shop{% endblock %}
+
+{% block content %}
+
+<style>
+  .hero-section {
+    background: linear-gradient(135deg, #007bff 0%, #4dabff 100%);
+    color: white;
+    border-radius: 20px;
+    padding: 60px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+
+  .hero-title {
+    font-size: 48px;
+    font-weight: 700;
+  }
+
+  .hero-subtext {
+    font-size: 20px;
+    font-weight: 300;
+    margin-top: 10px;
+  }
+
+  .feature-card {
+    transition: transform .2s, box-shadow .2s;
+  }
+
+  .feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  }
+</style>
+
+<div class="container">
+
+  <!-- HERO SECTION -->
+  <div class="hero-section my-4">
+    <h1 class="hero-title">Fresh Groceries Delivered to You</h1>
+    <p class="hero-subtext">Shop fresh, organic, and daily-need essentials effortlessly.</p>
+    <a href="/products" class="btn btn-light btn-lg mt-4">
+      <i class="bi bi-cart3 me-2"></i> Browse Products
+    </a>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="row mt-5">
+
+    <div class="col-md-4 mb-3">
+      <div class="card feature-card p-4 text-center">
+        <i class="bi bi-truck fs-1 text-primary"></i>
+        <h5 class="mt-3">Fast Delivery</h5>
+        <p class="text-muted">Get your groceries delivered to your doorstep quickly.</p>
+      </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+      <div class="card feature-card p-4 text-center">
+        <i class="bi bi-bag-heart fs-1 text-primary"></i>
+        <h5 class="mt-3">Fresh & Quality Items</h5>
+        <p class="text-muted">Handpicked products with the best quality guaranteed.</p>
+      </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+      <div class="card feature-card p-4 text-center">
+        <i class="bi bi-currency-rupee fs-1 text-primary"></i>
+        <h5 class="mt-3">Affordable Prices</h5>
+        <p class="text-muted">Shop the best products at the lowest prices.</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<h2>Edit Profile</h2>
+<form method="post" style="max-width:480px">
+  <div class="mb-3">
+    <label class="form-label">Full name</label>
+    <input name="name" class="form-control" value="{{ user.name }}" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Email</label>
+    <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
+  </div>
+  <button class="btn btn-success">Save</button>
+  <a href="/dashboard" class="btn btn-link">Cancel</a>
+</form>
+{% endblock %}
